@@ -93,6 +93,21 @@ export default function FitSnapApp() {
     targetDate: '2026-09-01'
   });
 
+  // Temporary state for onboarding inputs to avoid pre-filled values
+  const [onboardingForm, setOnboardingForm] = useState({
+    age: '',
+    gender: 'female',
+    height: '',
+    weight: '',
+    activityLevel: 'moderate',
+    sleepHours: '',
+    waterIntake: '',
+    conditions: [] as string[],
+    fitnessGoal: 'preventive',
+    targetGoal: '',
+    targetDate: '2026-09-01'
+  });
+
   // Generated Scores State
   const [scores, setScores] = useState<AssessmentResults>({
     bmi: 23.0,
@@ -225,6 +240,19 @@ export default function FitSnapApp() {
         name: authName,
         email: authEmail
       });
+      setOnboardingForm({
+        age: '',
+        gender: 'female',
+        height: '',
+        weight: '',
+        activityLevel: 'moderate',
+        sleepHours: '',
+        waterIntake: '',
+        conditions: [],
+        fitnessGoal: 'preventive',
+        targetGoal: '',
+        targetDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // default to 90 days out
+      });
       setCurrentView('onboarding');
       setWizardStep(1);
     }
@@ -234,29 +262,53 @@ export default function FitSnapApp() {
     if (wizardStep < 3) {
       setWizardStep(prev => prev + 1);
     } else {
+      // Parse numbers with sensible defaults if left empty
+      const ageNum = parseInt(onboardingForm.age) || 28;
+      const heightNum = parseFloat(onboardingForm.height) || 172;
+      const weightNum = parseFloat(onboardingForm.weight) || 68;
+      const sleepNum = parseFloat(onboardingForm.sleepHours) || 7.0;
+      const waterNum = parseFloat(onboardingForm.waterIntake) || 2.2;
+      const targetGoalVal = onboardingForm.targetGoal || '72 Overall Health Score';
+
+      const finalizedProfile: UserProfile = {
+        age: ageNum,
+        gender: onboardingForm.gender,
+        height: heightNum,
+        weight: weightNum,
+        activityLevel: onboardingForm.activityLevel,
+        sleepHours: sleepNum,
+        waterIntake: waterNum,
+        conditions: onboardingForm.conditions,
+        fitnessGoal: onboardingForm.fitnessGoal,
+        targetGoal: targetGoalVal,
+        targetDate: onboardingForm.targetDate || '2026-09-01'
+      };
+
+      setProfileForm(finalizedProfile);
+
       // Calculate scores
-      const bmiValue = parseFloat((profileForm.weight / Math.pow(profileForm.height / 100, 2)).toFixed(1));
+      const bmiValue = parseFloat((weightNum / Math.pow(heightNum / 100, 2)).toFixed(1));
       let bmiCat = 'Normal Weight';
       if (bmiValue < 18.5) bmiCat = 'Underweight';
       else if (bmiValue >= 25 && bmiValue < 30) bmiCat = 'Overweight';
       else if (bmiValue >= 30) bmiCat = 'Obese';
 
       // Estimate scores
-      const waterScore = Math.min(100, Math.round((profileForm.waterIntake / 3.0) * 100));
-      const sleepScore = Math.min(100, Math.round((profileForm.sleepHours / 8.0) * 100));
+      const waterScore = Math.min(100, Math.round((waterNum / 3.0) * 100));
+      const sleepScore = Math.min(100, Math.round((sleepNum / 8.0) * 100));
       
       let baseActivityScore = 60;
-      if (profileForm.activityLevel === 'light') baseActivityScore = 70;
-      else if (profileForm.activityLevel === 'moderate') baseActivityScore = 82;
-      else if (profileForm.activityLevel === 'active') baseActivityScore = 95;
+      if (onboardingForm.activityLevel === 'light') baseActivityScore = 70;
+      else if (onboardingForm.activityLevel === 'moderate') baseActivityScore = 82;
+      else if (onboardingForm.activityLevel === 'active') baseActivityScore = 95;
 
       const wellness = Math.round((waterScore + sleepScore + baseActivityScore) / 3);
 
       setScores({
         bmi: bmiValue,
         bmiCategory: bmiCat,
-        bodyType: profileForm.gender === 'male' ? 'Mesomorph' : 'Endomorph',
-        fitnessLevel: profileForm.activityLevel === 'active' ? 'Advanced' : 'Intermediate',
+        bodyType: onboardingForm.gender === 'male' ? 'Mesomorph' : 'Endomorph',
+        fitnessLevel: onboardingForm.activityLevel === 'active' ? 'Advanced' : 'Intermediate',
         lifestyleScore: Math.round((sleepScore + waterScore) / 2),
         recoveryScore: Math.round(sleepScore * 0.9),
         hydrationScore: waterScore,
@@ -264,11 +316,11 @@ export default function FitSnapApp() {
       });
 
       // Synchronize Twin Sliders with original values
-      setTwinSleep(profileForm.sleepHours);
-      setTwinWater(profileForm.waterIntake);
-      setTwinWorkout(profileForm.activityLevel === 'sedentary' ? 10 : profileForm.activityLevel === 'light' ? 30 : 60);
+      setTwinSleep(sleepNum);
+      setTwinWater(waterNum);
+      setTwinWorkout(onboardingForm.activityLevel === 'sedentary' ? 10 : onboardingForm.activityLevel === 'light' ? 30 : 60);
       setTwinNutrition(75);
-      setTwinActivity(profileForm.activityLevel);
+      setTwinActivity(onboardingForm.activityLevel);
 
       setCurrentView('dna-reveal');
     }
@@ -865,16 +917,17 @@ export default function FitSnapApp() {
                         <label className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block mb-1">Age (Years)</label>
                         <input 
                           type="number" 
-                          value={profileForm.age}
-                          onChange={(e) => setProfileForm({ ...profileForm, age: parseInt(e.target.value) || 28 })}
+                          placeholder="e.g. 28"
+                          value={onboardingForm.age}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, age: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40"
                         />
                       </div>
                       <div>
                         <label className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block mb-1">Gender Identification</label>
                         <select 
-                          value={profileForm.gender}
-                          onChange={(e) => setProfileForm({ ...profileForm, gender: e.target.value })}
+                          value={onboardingForm.gender}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, gender: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40 text-slate-300"
                         >
                           <option value="female">Female</option>
@@ -886,8 +939,9 @@ export default function FitSnapApp() {
                         <label className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block mb-1">Height (cm)</label>
                         <input 
                           type="number" 
-                          value={profileForm.height}
-                          onChange={(e) => setProfileForm({ ...profileForm, height: parseInt(e.target.value) || 170 })}
+                          placeholder="e.g. 172"
+                          value={onboardingForm.height}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, height: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40"
                         />
                       </div>
@@ -895,8 +949,9 @@ export default function FitSnapApp() {
                         <label className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block mb-1">Weight (kg)</label>
                         <input 
                           type="number" 
-                          value={profileForm.weight}
-                          onChange={(e) => setProfileForm({ ...profileForm, weight: parseInt(e.target.value) || 70 })}
+                          placeholder="e.g. 68"
+                          value={onboardingForm.weight}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, weight: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40"
                         />
                       </div>
@@ -914,8 +969,8 @@ export default function FitSnapApp() {
                       <div>
                         <label className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block mb-1">Activity Level</label>
                         <select 
-                          value={profileForm.activityLevel}
-                          onChange={(e) => setProfileForm({ ...profileForm, activityLevel: e.target.value })}
+                          value={onboardingForm.activityLevel}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, activityLevel: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40 text-slate-300"
                         >
                           <option value="sedentary">Sedentary (desk job, minimal movement)</option>
@@ -929,8 +984,9 @@ export default function FitSnapApp() {
                         <input 
                           type="number" 
                           step="0.5"
-                          value={profileForm.sleepHours}
-                          onChange={(e) => setProfileForm({ ...profileForm, sleepHours: parseFloat(e.target.value) || 7 })}
+                          placeholder="e.g. 7"
+                          value={onboardingForm.sleepHours}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, sleepHours: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40"
                         />
                       </div>
@@ -939,8 +995,9 @@ export default function FitSnapApp() {
                         <input 
                           type="number" 
                           step="0.1"
-                          value={profileForm.waterIntake}
-                          onChange={(e) => setProfileForm({ ...profileForm, waterIntake: parseFloat(e.target.value) || 2 })}
+                          placeholder="e.g. 2.2"
+                          value={onboardingForm.waterIntake}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, waterIntake: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40"
                         />
                       </div>
@@ -948,16 +1005,16 @@ export default function FitSnapApp() {
                         <label className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block mb-1">Existing Medical Conditions</label>
                         <div className="flex flex-wrap gap-2 mt-1">
                           {['Diabetes', 'Heart Disease', 'Hypertension', 'Obesity'].map((cond) => {
-                            const active = profileForm.conditions.includes(cond);
+                            const active = onboardingForm.conditions.includes(cond);
                             return (
                               <button
                                 key={cond}
                                 type="button"
                                 onClick={() => {
                                   if (active) {
-                                    setProfileForm({ ...profileForm, conditions: profileForm.conditions.filter(c => c !== cond) });
+                                    setOnboardingForm({ ...onboardingForm, conditions: onboardingForm.conditions.filter(c => c !== cond) });
                                   } else {
-                                    setProfileForm({ ...profileForm, conditions: [...profileForm.conditions, cond] });
+                                    setOnboardingForm({ ...onboardingForm, conditions: [...onboardingForm.conditions, cond] });
                                   }
                                 }}
                                 className={`text-[10px] font-bold px-3 py-1.5 rounded-lg border transition-all ${
@@ -986,8 +1043,8 @@ export default function FitSnapApp() {
                       <div>
                         <label className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block mb-1">Primary Fitness Goal</label>
                         <select 
-                          value={profileForm.fitnessGoal}
-                          onChange={(e) => setProfileForm({ ...profileForm, fitnessGoal: e.target.value })}
+                          value={onboardingForm.fitnessGoal}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, fitnessGoal: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40 text-slate-300"
                         >
                           <option value="preventive">Preventive Longevity (Avoid Disease)</option>
@@ -1001,8 +1058,8 @@ export default function FitSnapApp() {
                         <input 
                           type="text" 
                           placeholder="e.g. Lose 5kg or Reach 85 Health Score"
-                          value={profileForm.targetGoal}
-                          onChange={(e) => setProfileForm({ ...profileForm, targetGoal: e.target.value })}
+                          value={onboardingForm.targetGoal}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, targetGoal: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40"
                         />
                       </div>
@@ -1010,15 +1067,14 @@ export default function FitSnapApp() {
                         <label className="text-[10px] text-slate-300 font-bold uppercase tracking-wider block mb-1">Milestone Target Date</label>
                         <input 
                           type="date" 
-                          value={profileForm.targetDate}
-                          onChange={(e) => setProfileForm({ ...profileForm, targetDate: e.target.value })}
+                          value={onboardingForm.targetDate}
+                          onChange={(e) => setOnboardingForm({ ...onboardingForm, targetDate: e.target.value })}
                           className="w-full bg-slate-900 border border-white/5 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-cyan-500/40 text-slate-300"
                         />
                       </div>
                     </div>
                   </div>
                 )}
-
               </div>
 
               {/* Navigation Actions */}
